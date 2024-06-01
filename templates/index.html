@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game</title>
+    <style>
+        #gameContainer {
+            text-align: center;
+        }
+
+        #gameCanvas {
+            border: 2px solid black;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div id="score">Score: 0</div>
+        <label for="nameInput">Enter your name:</label>
+        <input type="text" id="nameInput" placeholder="Your Name">
+        <label for="gridSizeInput">Enter grid size:</label>
+        <input type="number" id="gridSizeInput" placeholder="Grid Size">
+        <button id="startBtn">Start Game</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            var canvas = document.getElementById("gameCanvas");
+            var ctx = canvas.getContext("2d");
+            var scoreDisplay = document.getElementById("score");
+            var startBtn = document.getElementById("startBtn");
+            var nameInput = document.getElementById("nameInput");
+
+            var gridSizeInput = document.getElementById("gridSizeInput");
+            var intervalId;
+            var gameStarted = false;
+            var game;
+            var appleImage = new Image();
+            appleImage.src = '/static/apple.png';
+
+            startBtn.addEventListener("click", function () {
+                var playerName = nameInput.value.trim() || 'Player';
+                var gridSize = parseInt(gridSizeInput.value) || 20;
+                canvas.width = gridSize * 20;
+                canvas.height = gridSize * 20;
+                $.ajax({
+                    url: '/start_game',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        'grid_size': gridSize,
+                        'name': playerName
+                    }),
+                    success: function (response) {
+                        if (response.message === 'Game started successfully.') {
+                            startBtn.disabled = true;
+                            gameStarted = true;
+                            game = response.game;
+                            intervalId = setInterval(moveSnake, 100);
+                        }
+                    }
+                });
+            });
+
+            var direction = 'd';
+            var score = 0;
+
+            function moveSnake() {
+                $.ajax({
+                    url: '/move',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({'direction': direction}),
+                    success: function (response) {
+                        if (response.result) {
+                            game = response.game;
+                            drawBoard(game.score);
+                        } else {
+                            clearInterval(intervalId);
+                            alert("Game Over! Your final score is: " + game.score
+                                + ". Highest score: " + game.highest_score);
+                            startBtn.disabled = false;
+                            gameStarted = false;
+                            direction = 'd';
+                        }
+                    }
+                });
+            }
+
+            function drawBoard(newScore) {
+                score = newScore;
+                scoreDisplay.innerHTML = "Score: " + score + " | Highest Score: " + game.highest_score;
+
+                var cellSize = canvas.width / game.grid_size;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = '#e6ffb3';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                for (let i = 0; i < game.snake.length; i++) {
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 2
+                    ctx.strokeRect(game.snake[i][1] * cellSize + 2, game.snake[i][0] * cellSize + 2, cellSize - 4, cellSize - 4);
+                }
+
+                var appleSize = cellSize * 1.5;
+                var foodX = (game.food[1] * cellSize) + (cellSize - appleSize) / 2;
+                var foodY = (game.food[0] * cellSize) + (cellSize - appleSize) / 2;
+                ctx.drawImage(appleImage, foodX, foodY, appleSize, appleSize);
+            }
+
+            document.addEventListener("keydown", function (event) {
+                if (gameStarted) {
+                    if (event.key === 'ArrowUp' && direction !== 's') {
+                        direction = 'w';
+                    } else if (event.key === 'ArrowDown' && direction !== 'w') {
+                        direction = 's';
+                    } else if (event.key === 'ArrowLeft' && direction !== 'd') {
+                        direction = 'a';
+                    } else if (event.key === 'ArrowRight' && direction !== 'a') {
+                        direction = 'd';
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
